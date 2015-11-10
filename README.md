@@ -1,6 +1,6 @@
 # kixi.hecuba.minorca
 
-
+Create a new properties and devices, load measurements from csv into Hecuba via the API.
 
 ## Usage
 

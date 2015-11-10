@@ -7,4 +7,7 @@
                  [clj-http              "2.0.0"]
                  [org.clojure/data.json "0.2.6"]
                  [org.clojure/data.csv  "0.1.3"]
-                 [org.clojure/tools.logging "0.3.1"]])
+                 [org.clojure/tools.logging "0.3.1"]]
+  :plugins [[lein-cljfmt     "0.1.11"]
+            [jonase/eastwood "0.2.1"]
+            [lein-kibit      "0.1.2"]])
