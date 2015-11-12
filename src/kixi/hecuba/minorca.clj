@@ -30,6 +30,10 @@
   [houses-ids ids-mapping]
   (set/difference houses-ids ids-mapping))
 
+(defn overwrite-mapping [data mapping-file]
+  (with-open [out-file (io/writer mapping-file)]
+    (csv/write-csv out-file data)))
+
 (defn pre-processing
   [input-file mapping-file project_id base-url username password]
   (let [input-data (open-input-file input-file)
@@ -40,20 +44,19 @@
                           (rest mapping-content))
         map-houses-ids (select-identifiers mapping-data :house_id)
         new-houses (look-up houses-ids map-houses-ids)]
-    (if (empty? new-houses) ;; no new house
+    (if (empty? new-houses) ;; No new house
       (println "NO new house")
-      ;; New houses to be created + overwrite mapping csv
-      (let [new-mapping (->> (pmap (fn [house]
-                                     (vec (cons house
-                                                (api/create-new-entities
-                                                 {:project_id project_id :property_code house}
-                                                 (str "Device " house)
-                                                 base-url username password))))
-                                   new-houses)
-                             (concat mapping-content)
-                             vec)]
-        (with-open [out-file (io/writer mapping-file)]
-          (csv/write-csv out-file new-mapping))))))
+      (overwrite-mapping ;; Create new houses + write mapping csv
+       (->> (pmap
+             (fn [house] (vec (cons house
+                                    (api/create-new-entities
+                                     {:project_id project_id :property_code house}
+                                     (str "Device " house)
+                                     base-url username password))))
+             new-houses)
+            (concat mapping-content)
+            vec)
+       mapping-file))))
 
 (comment (pre-processing "resources/measurements-elec.csv"
                          "resources/mapping.csv"
