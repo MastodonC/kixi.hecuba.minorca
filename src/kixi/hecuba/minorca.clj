@@ -35,6 +35,8 @@
     (csv/write-csv out-file data)))
 
 (defn pre-processing
+  "Check if houses are new. If so then create new instances
+  in hecuba and add them to the mapping file."
   [input-file mapping-file project_id base-url username password]
   (let [input-data (open-input-file input-file)
         houses-ids (select-identifiers input-data :house_id)
@@ -63,6 +65,41 @@
                          "xxx-xxx-xxx"
                          "https://www.api-url/v1/"
                          "me@user.com" "p4ssw0rd"))
+
+(defn format-mapping-data
+  [mapping-data]
+  (->> (map (fn [m] {(:house_id m)
+                     {:entity_id (:entity_id m)
+                      :device_id (:device_id m)}})
+            mapping-data)
+       (reduce merge)))
+
+(defn format-input-data
+  [input-data]
+  (->> input-data
+       (map #(select-keys % [:house_id :device_timestamp
+                             :energy :temperature]))
+       (group-by :house_id)))
+
+(defn merge-data-ids [data-input data-map]
+  (->> (map (fn [kv] {(first kv)
+                      (mapv (fn [m]
+                              (assoc m
+                                     :entity_id (:entity_id (get data-map (first kv)))
+                                     :device_id (:entity_id (get data-map (first kv)))))
+                            (last kv))})
+            data-input)
+       (reduce merge)))
+
+(defn processing
+  "Using the mapping file to add the measurements to the
+  right embed properties."
+  [input-file mapping-file base-url username password]
+  (let [input-data (open-input-file input-file)
+        formatted-input (format-input-data input-data)
+        mapping-data (open-input-file mapping-file)
+        mapping-ids (format-mapping-data mapping-data)]
+    (->> (merge-data-ids formatted-input mapping-ids))))
 
 
 (defn main
