@@ -1,6 +1,7 @@
 *~
 *#
 .#*
+/resources/*
 /target
 /classes
 /checkouts

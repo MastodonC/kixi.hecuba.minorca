@@ -50,16 +50,30 @@
         (str/split #"/")
         last)))
 
+;; To be moved to a config file later
+(def readings [{:unit "deg C" :period "INSTANT" :type "temperature"}
+               {:unit "kWh" :period "CUMULATIVE"
+                :type "electricityConsumption"}
+               {:unit "m^3" :period "CUMULATIVE"
+                :type "gasConsumption"}])
+
 (comment (create-new-device  "yyy-yyy-yyy"
-                             {:readings [{:unit "deg C" :period "INSTANT" :type "temperature"}
-                                         {:unit "kWh" :period "CUMULATIVE"
-                                          :type "electricityConsumption"}
-                                         {:unit "m^3" :period "CUMULATIVE"
-                                          :type "gasConsumption"}]
+                             {:readings readings
                               :description "New device"
                               :entity_id "yyy-yyy-yyy"}
                              "https://www.api-url/v1/"
                              "me@user.com" "p4ssw0rd"))
+
+(defn create-new-entities
+  "Create a new property + a new device. Return the entity_id
+  and device_id in a vector."
+  [property-info device_name base-url username password]
+  (let [entity_id (create-new-property property-info base-url username password)
+        device_id (create-new-device entity_id {:readings readings
+                                                :description device_name
+                                                :entity_id entity_id}
+                                     base-url username password)]
+    [entity_id device_id]))
 
 
 (defn format-measurements [measurements] ;; May need more formatting later
