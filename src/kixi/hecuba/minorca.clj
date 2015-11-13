@@ -79,7 +79,10 @@
                              :energy :temperature]))
        (group-by :house_id)))
 
-(defn merge-data-ids [data-input data-map]
+(defn merge-data-ids
+  "Use the two functions above to associate the measurements
+  with the entity_id and device_id."
+  [data-input data-map]
   (->> (map (fn [[k v]] {{:entity_id (:entity_id (get data-map k))
                           :device_id (:device_id (get data-map k))} 
                          (mapv (fn [m]
@@ -100,16 +103,22 @@
     (merge-data-ids formatted-input mapping-ids)))
 
 (defn upload-measurement-data
+  "Use the previous function to pre-format the data
+  before using helper functions to format more and
+  send the POST request."
   [input-file mapping-file base-url username password]
   (->> (prepare-measurements-for-upload
         input-file mapping-file)
        (map (fn [[map-ids vec-measure]]
-              (api/upload-measurements (:entity_id map-ids) (:device_id map-ids)
-                                       vec-measure
-                                       base-url username password)))))
+              (api/decide-upload (:entity_id map-ids) (:device_id map-ids)
+                                 vec-measure
+                                 base-url username password)))))
 
 
 (defn main
   "To do all the things."
-  [x]
-  x)
+  [input-file mapping-file project_id base-url username password]
+  (pre-processing input-file mapping-file project_id
+                  base-url username password)
+  (upload-measurement-data input-file mapping-file
+                           base-url username password))
