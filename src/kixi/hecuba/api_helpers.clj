@@ -4,7 +4,9 @@
             [clojure.data.json     :as json]
             [clojure.java.io       :as io]
             [clojure.tools.logging :as log]
-            [clojure.string        :as str]))
+            [clojure.string        :as str]
+            [clj-time.core         :as t]
+            [clj-time.coerce       :as c]))
 
 (defn create-new-property
   "Use property info (project_id and property_code)
@@ -75,9 +77,23 @@
                                      base-url username password)]
     [entity_id device_id]))
 
+(defn format-epoch-timestamp [epoch-timestamp]
+  (c/to-string (* (read-string epoch-timestamp) 1000)))
 
-(defn format-measurements [measurements] ;; May need more formatting later
-  (json/write-str measurements))
+(defn format-measurements
+  "Input is a vector of maps with measurements and property 
+  info to format into embed measurements."
+  [measurements]
+  (->> measurements
+       (map (fn [m]
+              (-> (select-keys m [:device_timestamp :energy])
+                  (clojure.set/rename-keys 
+                   {:device_timestamp :timestamp
+                    :energy :value})
+                  (assoc :type "electricityConsumption"))))
+       (mapv (fn [m] (update m :timestamp format-epoch-timestamp)))
+       (assoc {} :measurements)
+       json/write-str))
 
 (defn upload-measurements
   [entity-id device-id measurements base-url username password]
@@ -92,7 +108,8 @@
          (catch Exception e (str "Caught exception " (.getMessage e))))))
 
 (comment (upload-measurements  "yyy-yyy-yyy" "zzz-zzz-zzz"
-                               {:measurements [{:value "19" :timestamp "2015-11-10T10:30:00Z"
+                               {:measurements [{:value "19"
+                                                :timestamp "2015-11-10T10:30:00Z"
                                                 :type "temperature"}]}
                                "https://www.api-url/v1/"
                                "me@user.com" "p4ssw0rd"))

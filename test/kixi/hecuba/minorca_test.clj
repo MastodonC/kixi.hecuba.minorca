@@ -69,19 +69,15 @@
 
 (deftest merge-data-ids-test
   (testing "Output is as expected"
-    (is (= {"001" [{:house_id "001" :device_timestamp "1433096100" :energy "63746"
-                    :entity_id "aaa-aaa-aaa" :device_id "aaa-aaa-aaa"}
-                   {:house_id "001" :device_timestamp "1433097000" :energy "63800"
-                    :entity_id "aaa-aaa-aaa" :device_id "aaa-aaa-aaa"}]
-            "002" [{:house_id "002" :device_timestamp "1436913000" :energy "2498"
-                    :entity_id "ccc-ccc-ccc" :device_id "ccc-ccc-ccc"}]
-            "003" [{:house_id "003" :device_timestamp "1436908500" :energy "1150"
-                    :entity_id "eee-eee-eee" :device_id "eee-eee-eee"}
-                   {:house_id "003" :device_timestamp "1436909400" :energy "1174"
-                    :entity_id "eee-eee-eee" :device_id "eee-eee-eee"}
-                   {:house_id "003" :device_timestamp "1436910300" :energy "1218"
-                    :entity_id "eee-eee-eee" :device_id "eee-eee-eee"}
-                   {:house_id "003" :device_timestamp "1436911200" :energy "1283"
-                    :entity_id "eee-eee-eee" :device_id "eee-eee-eee"}]}
+    (is (= {{:entity_id "aaa-aaa-aaa", :device_id "bbb-bbb-bbb-"}
+            [{:device_timestamp "1433096100", :energy "63746"}
+             {:device_timestamp "1433097000", :energy "63800"}],
+            {:entity_id "ccc-ccc-ccc", :device_id "ddd-ddd-ddd"}
+            [{:device_timestamp "1436913000", :energy "2498"}],
+            {:entity_id "eee-eee-eee", :device_id "fff-fff-fff"}
+            [{:device_timestamp "1436908500", :energy "1150"}
+             {:device_timestamp "1436909400", :energy "1174"}
+             {:device_timestamp "1436910300", :energy "1218"}
+             {:device_timestamp "1436911200", :energy "1283"}]}
            (merge-data-ids formatted-input-data
                            formatted-mapping-data)))))

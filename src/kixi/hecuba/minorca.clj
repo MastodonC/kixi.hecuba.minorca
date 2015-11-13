@@ -8,8 +8,6 @@
             [kixi.hecuba.api-helpers :as api]
             [clojure.set             :as set]))
 
-(def houses-mapping "resources/houses-mapping.csv")
-
 (defn open-input-file
   "Read a csv and output a seq of maps containing the file data."
   [input-file]
@@ -82,24 +80,33 @@
        (group-by :house_id)))
 
 (defn merge-data-ids [data-input data-map]
-  (->> (map (fn [kv] {(first kv)
-                      (mapv (fn [m]
-                              (assoc m
-                                     :entity_id (:entity_id (get data-map (first kv)))
-                                     :device_id (:entity_id (get data-map (first kv)))))
-                            (last kv))})
+  (->> (map (fn [[k v]] {{:entity_id (:entity_id (get data-map k))
+                          :device_id (:device_id (get data-map k))} 
+                         (mapv (fn [m]
+                                 (select-keys m [:device_timestamp
+                                                 :energy :temperature]))
+                               v)})
             data-input)
        (reduce merge)))
 
 (defn prepare-measurements-for-upload
   "Using the mapping file to add the measurements to the
   right embed properties."
-  [input-file mapping-file base-url username password]
+  [input-file mapping-file]
   (let [input-data (open-input-file input-file)
         formatted-input (format-input-data input-data)
         mapping-data (open-input-file mapping-file)
         mapping-ids (format-mapping-data mapping-data)]
-    (->> (merge-data-ids formatted-input mapping-ids))))
+    (merge-data-ids formatted-input mapping-ids)))
+
+(defn upload-measurement-data
+  [input-file mapping-file base-url username password]
+  (->> (prepare-measurements-for-upload
+        input-file mapping-file)
+       (map (fn [[map-ids vec-measure]]
+              (api/upload-measurements (:entity_id map-ids) (:device_id map-ids)
+                                       vec-measure
+                                       base-url username password)))))
 
 
 (defn main
