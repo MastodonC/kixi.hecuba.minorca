@@ -91,7 +91,7 @@
             data-input)
        (reduce merge)))
 
-(defn processing
+(defn prepare-measurements-for-upload
   "Using the mapping file to add the measurements to the
   right embed properties."
   [input-file mapping-file base-url username password]
