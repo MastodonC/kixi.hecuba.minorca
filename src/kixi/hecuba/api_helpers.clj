@@ -86,8 +86,7 @@
   [measurements]
   (->> measurements
        (map (fn [m]
-              (-> (select-keys m [:device_timestamp :energy])
-                  (clojure.set/rename-keys 
+              (-> (clojure.set/rename-keys 
                    {:device_timestamp :timestamp
                     :energy :value})
                   (assoc :type "electricityConsumption"))))
