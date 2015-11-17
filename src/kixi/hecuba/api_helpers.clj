@@ -108,32 +108,14 @@
         (assoc {} :measurements)
         json/write-str)))
 
-(defn decide-upload
-  "Handle correctly epending on the type of the input data."
-  [entity-id device-id measurements base-url username password]
-  (if (contains-temperature? measurements)
-    (do (upload-measurements
-         entity-id device-id
-         (format-measurements measurements :energy "gasConsumption")
-         base-url username password)
-        (upload-measurements
-         entity-id device-id
-         (format-measurements measurements :temperature "temperature")
-         base-url username password))
-    (upload-measurements
-     entity-id device-id
-     (format-measurements measurements :energy "electricityConsumption")
-     base-url username password)))
-
 (defn upload-measurements
   "Uploaded the measurements formatted to json format."
-  [entity-id device-id measurements base-url username password]
+  [entity-id device-id base-url username password measurements]
   (let [post-url (format "%sentities/%s/devices/%s/measurements/"
-                         base-url entity-id device-id)
-        json-payload measurements]
+                         base-url entity-id device-id)]
     (try (client/post post-url
                       {:basic-auth [username password]
-                       :body json-payload
+                       :body measurements
                        :content-type "application/json"
                        :accept "application/json"})
          (catch Exception e (str "Caught exception " (.getMessage e))))))
@@ -144,3 +126,19 @@
                                                 :type "temperature"}]}
                                "https://www.api-url/v1/"
                                "me@user.com" "p4ssw0rd"))
+
+(defn decide-upload
+  "Handle correctly depending on the type of the input data."
+  [entity-id device-id measurements base-url username password]
+  (let [call-upload (partial upload-measurements
+                             entity-id device-id
+                             base-url username password)]
+    (if (contains-temperature? measurements)
+            (do (call-upload
+                 (format-measurements measurements :energy "gasConsumption"))
+                (call-upload
+                 (format-measurements measurements :temperature "temperature")))
+            (call-upload
+             (format-measurements measurements :energy "electricityConsumption")))))
+
+
