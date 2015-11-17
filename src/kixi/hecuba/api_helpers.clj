@@ -80,28 +80,42 @@
 (defn format-epoch-timestamp [epoch-timestamp]
   (c/to-string (* (read-string epoch-timestamp) 1000)))
 
+;; Here electricity files only contain electricity data
+;; but gas files also contain temperature and should
+;; be handled differently.
+(defn contains-temperature? [measurements]
+  (contains? (first measurements) :temperature))
+
+(defn format-map
+  "For a map with one measurement rename keys
+  and select the desired values."
+  [m m-key sensor-type]
+  (-> m
+      (clojure.set/rename-keys 
+       {:device_timestamp :timestamp
+        m-key :value})
+      (assoc :type sensor-type)
+      (select-keys [:timestamp :value :type])))
+
 (defn format-measurements
   "Input is a vector of maps with measurements and property 
   info to format into embed measurements."
-  [measurements]
-  (->> measurements
-       (map (fn [m]
-              (-> (clojure.set/rename-keys 
-                   {:device_timestamp :timestamp
-                    :energy :value})
-                  (assoc :type "electricityConsumption"))))
-       (mapv (fn [m] (update m :timestamp format-epoch-timestamp)))
-       (assoc {} :measurements)
-       json/write-str))
+  ([measurements key-type sensor-type]
+   (->> measurements
+        (map (fn [m]
+               (format-map m key-type sensor-type)))
+        (mapv (fn [m] (update m :timestamp format-epoch-timestamp)))
+        (assoc {} :measurements)
+        json/write-str)))
 
 (defn upload-measurements
-  [entity-id device-id measurements base-url username password]
+  "Uploaded the measurements formatted to json format."
+  [entity-id device-id base-url username password measurements]
   (let [post-url (format "%sentities/%s/devices/%s/measurements/"
-                         base-url entity-id device-id)
-        json-payload (format-measurements measurements)]
+                         base-url entity-id device-id)]
     (try (client/post post-url
                       {:basic-auth [username password]
-                       :body json-payload
+                       :body measurements
                        :content-type "application/json"
                        :accept "application/json"})
          (catch Exception e (str "Caught exception " (.getMessage e))))))
@@ -112,3 +126,19 @@
                                                 :type "temperature"}]}
                                "https://www.api-url/v1/"
                                "me@user.com" "p4ssw0rd"))
+
+(defn decide-upload
+  "Handle correctly depending on the type of the input data."
+  [entity-id device-id measurements base-url username password]
+  (let [upload-fn (partial upload-measurements
+                           entity-id device-id
+                           base-url username password)]
+    (if (contains-temperature? measurements)
+      (do (call-upload
+           (format-measurements measurements :energy "gasConsumption"))
+          (call-upload
+           (format-measurements measurements :temperature "temperature")))
+      (call-upload
+       (format-measurements measurements :energy "electricityConsumption")))))
+
+
