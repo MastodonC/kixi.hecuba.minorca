@@ -134,11 +134,11 @@
                            entity-id device-id
                            base-url username password)]
     (if (contains-temperature? measurements)
-      (do (call-upload
+      (do (upload-fn
            (format-measurements measurements :energy "gasConsumption"))
-          (call-upload
+          (upload-fn
            (format-measurements measurements :temperature "temperature")))
-      (call-upload
+      (upload-fn
        (format-measurements measurements :energy "electricityConsumption")))))
 
 
