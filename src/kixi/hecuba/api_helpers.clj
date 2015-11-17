@@ -130,15 +130,15 @@
 (defn decide-upload
   "Handle correctly depending on the type of the input data."
   [entity-id device-id measurements base-url username password]
-  (let [call-upload (partial upload-measurements
-                             entity-id device-id
-                             base-url username password)]
+  (let [upload-fn (partial upload-measurements
+                           entity-id device-id
+                           base-url username password)]
     (if (contains-temperature? measurements)
-            (do (call-upload
-                 (format-measurements measurements :energy "gasConsumption"))
-                (call-upload
-                 (format-measurements measurements :temperature "temperature")))
-            (call-upload
-             (format-measurements measurements :energy "electricityConsumption")))))
+      (do (call-upload
+           (format-measurements measurements :energy "gasConsumption"))
+          (call-upload
+           (format-measurements measurements :temperature "temperature")))
+      (call-upload
+       (format-measurements measurements :energy "electricityConsumption")))))
 
 
