@@ -19,7 +19,8 @@
                            :body json-payload
                            :content-type "application/json"
                            :accept "application/json"})
-             (catch Exception e (str "Caught exception " (.getMessage e))))
+             (catch Throwable t (println "Caught exception: " (.getMessage t))
+                    (throw t)))
         :body
         (json/read-str :key-fn keyword)
         (get-in [:headers :Location])
@@ -45,7 +46,8 @@
                            :body json-payload
                            :content-type "application/json"
                            :accept "application/json"})
-             (catch Exception e (str "Caught exception " (.getMessage e))))
+             (catch Throwable t (println "Caught exception: " (.getMessage t))
+                    (throw t)))
         :body
         (json/read-str :key-fn keyword)
         :location
@@ -134,11 +136,11 @@
                            entity-id device-id
                            base-url username password)]
     (if (contains-temperature? measurements)
-      (do (call-upload
+      (do (upload-fn
            (format-measurements measurements :energy "gasConsumption"))
-          (call-upload
+          (upload-fn
            (format-measurements measurements :temperature "temperature")))
-      (call-upload
+      (upload-fn
        (format-measurements measurements :energy "electricityConsumption")))))
 
 
