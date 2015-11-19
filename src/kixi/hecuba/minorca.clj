@@ -6,7 +6,7 @@
             [clojure.tools.logging   :as log]
             [kixi.hecuba.api-helpers :as api]
             [clojure.set             :as set]
-            [aws.sdk.s3              :as s3]))
+            [amazonica.aws.s3        :as s3]))
 
 
 ;; Get all information from the configuration file
@@ -22,17 +22,22 @@
 
 
 ;; Get all the files in the S3 bucket
+(def bucket (-> config-info :s3 :bucket))
+
+(def cred (-> config-info :s3 :cred))
+
 (defn list-files-in-bucket
   "List the files contained in the s3 bucket.
   Ordered by last modification date."
-  [name cred]
+  []
   (log/info "Looking for the files in s3 bucket...")
-  (if (s3/bucket-exists? cred name)
-    (let [s3-objects (:objects (s3/list-objects cred name))]
-      (->> (sort-by #(get-in % [:metadata :last-modified])
-                    s3-objects)
-           (map :key)))
-    (log/debug "This bucket doesn't exist!")))
+  (try (let [s3-objects (:object-summaries (s3/list-objects cred bucket))]
+         (->> (sort-by :last-modified
+                       s3-objects)
+              (map :key)))
+       (catch Throwable t
+         (println "Got exception: " (.getMessage t))
+         (throw t))))
 
 
 ;; Helper functions for the pre-processing step
@@ -156,19 +161,19 @@
 (defn main
   "To do all the things."
   [project_id base-url username password]
-  (let [{:keys [bucket-name bucket-cred mapping-file processed-file]} config-info
-        s3-files (list-files-in-bucket bucket-name bucket-cred)]
+  (let [{:keys [mapping-file processed-file]} config-info
+        s3-files (take 2 (list-files-in-bucket))]
     (map (fn [f]
-           (let [file-info (s3/get-object bucket-cred bucket-name f)
-                 input-data (with-open [r (->> (s3/get-object bucket-cred bucket-name f)
-                                               :content
+           (let [file-info (s3/get-object cred bucket f)
+                 input-data (with-open [r (->> (s3/get-object cred bucket f)
+                                               :object-content
                                                io/reader)]
                               (open-input-file r))
                  processed-content (with-open [in-file (io/reader processed-file)]
                                      (doall (csv/read-csv in-file)))
                  data-to-save (conj (vec processed-content)
-                                    [(:key file-info) (:metadata file-info)
-                                     (:bucket file-info) (:content file-info)])]
+                                    [(:key file-info) (:object-metadata file-info)
+                                     (:bucket-name file-info) (:object-content file-info)])]
              (write-to-file data-to-save processed-file)
              (pre-processing input-data
                              mapping-file project_id

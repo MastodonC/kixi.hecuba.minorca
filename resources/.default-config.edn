@@ -1,5 +1,5 @@
-{:bucket-name "my-bucket"
- :bucket-cred {:access-key "xxxxxxxxx"
-               :secret-key "zzzzzzzzz"}
+{:s3 {:bucket "my-bucket"
+      :cred {:access-key "xxxxxxxxx"
+             :secret-key "zzzzzzzzz"}}
  :mapping-file "resources/houses-mapping-file.csv"
  :processed-file "resources/files-processed.csv"}
