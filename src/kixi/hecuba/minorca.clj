@@ -41,7 +41,7 @@
 
 
 ;; Helper functions for the pre-processing step
-(defn open-input-file
+(defn file->seq-of-maps
   "Read a csv and output a seq of maps containing the file data."
   [input-file]
   (let [data-seq (with-open [in-file (io/reader input-file)]
@@ -61,7 +61,7 @@
   [houses-ids ids-mapping]
   (set/difference houses-ids ids-mapping))
 
-(defn write-to-file [data mapping-file]
+(defn write-to-file [mapping-file data]
   (with-open [out-file (io/writer mapping-file)]
     (csv/write-csv out-file data)))
 
@@ -81,16 +81,16 @@
     (if (empty? new-houses) ;; No new house
       (println "NO new house")
       ;; Create new houses + write mapping csv
-      (-> (->> (pmap
-                (fn [house] (vec (cons house
-                                       (api/create-new-entities
-                                        {:project_id project_id :property_code house}
-                                        (str "Device " house)
-                                        base-url username password))))
-                new-houses)
-               (concat mapping-content)
-               vec)
-          (write-to-file mapping-file)))))
+      (->> (pmap
+            (fn [house] (vec (cons house
+                                   (api/create-new-entities
+                                    {:project_id project_id :property_code house}
+                                    (str "Device " house)
+                                    base-url username password))))
+            new-houses)
+           (concat mapping-content)
+           vec
+           (write-to-file mapping-file)))))
 
 (comment (pre-processing "resources/measurements-elec.csv"
                          "resources/mapping.csv"
@@ -133,7 +133,7 @@
   right embed properties."
   [input-data mapping-file]
   (let [formatted-input (format-input-data input-data)
-        mapping-data (open-input-file mapping-file)
+        mapping-data (file->seq-of-maps mapping-file)
         mapping-ids (format-mapping-data mapping-data)]
     (merge-data-ids formatted-input mapping-ids)))
 
@@ -168,13 +168,13 @@
                  input-data (with-open [r (->> (s3/get-object cred bucket f)
                                                :object-content
                                                io/reader)]
-                              (open-input-file r))
+                              (file->seq-of-maps r))
                  processed-content (with-open [in-file (io/reader processed-file)]
                                      (vec (csv/read-csv in-file)))
                  data-to-save (conj (vec processed-content)
                                     [(:key file-info) (:object-metadata file-info)
                                      (:bucket-name file-info) (:object-content file-info)])]
-             (write-to-file data-to-save processed-file)
+             (write-to-file processed-file data-to-save)
              (pre-processing input-data
                              mapping-file project_id
                              base-url username password)
