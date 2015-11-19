@@ -80,17 +80,17 @@
         new-houses (look-up houses-ids map-houses-ids)]
     (if (empty? new-houses) ;; No new house
       (println "NO new house")
-      (write-to-file ;; Create new houses + write mapping csv
-       (->> (pmap
-             (fn [house] (vec (cons house
-                                    (api/create-new-entities
-                                     {:project_id project_id :property_code house}
-                                     (str "Device " house)
-                                     base-url username password))))
-             new-houses)
-            (concat mapping-content)
-            vec)
-       mapping-file))))
+      ;; Create new houses + write mapping csv
+      (-> (->> (pmap
+                (fn [house] (vec (cons house
+                                       (api/create-new-entities
+                                        {:project_id project_id :property_code house}
+                                        (str "Device " house)
+                                        base-url username password))))
+                new-houses)
+               (concat mapping-content)
+               vec)
+          (write-to-file mapping-file)))))
 
 (comment (pre-processing "resources/measurements-elec.csv"
                          "resources/mapping.csv"
@@ -170,7 +170,7 @@
                                                io/reader)]
                               (open-input-file r))
                  processed-content (with-open [in-file (io/reader processed-file)]
-                                     (doall (csv/read-csv in-file)))
+                                     (vec (csv/read-csv in-file)))
                  data-to-save (conj (vec processed-content)
                                     [(:key file-info) (:object-metadata file-info)
                                      (:bucket-name file-info) (:object-content file-info)])]
