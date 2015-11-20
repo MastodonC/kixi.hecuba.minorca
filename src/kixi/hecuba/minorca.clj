@@ -103,14 +103,15 @@
 ;; Step 2: process + upload the data
 ;; Note: create a file to store the data files processed
 (defn -main
-  "To do all the things."
+  "Perform data processing and upload.
+  Update the mapping and files list CSVs."
   [& args]
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
         {:keys [mapping-file processed-file]} config-info
         s3-files (take 3 (list-files-in-bucket))]
     (map (fn [f]
-           (println "> FILE " f)
+           (log/info "> FILE " f)
            (let [file-info (s3/get-object cred bucket f)
                  input-data (with-open [r (->> (s3/get-object cred bucket f)
                                                :object-content
@@ -121,12 +122,12 @@
                  data-to-save (conj (vec processed-content)
                                     [(:key file-info) (:object-metadata file-info)
                                      (:bucket-name file-info) (:object-content file-info)])]
-             (println ">> Pre-processing... ")
+             (println ">> Pre-processing... " f)
              (pro/write-to-file processed-file data-to-save)
              (pre-processing input-data
                              mapping-file project-id
                              embed-url username password)
-             (println ">> Processing... ")
+             (println ">> Processing... " f)
              (upload-measurement-data input-data mapping-file
                                       embed-url username password)))
          s3-files)))
