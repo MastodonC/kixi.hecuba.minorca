@@ -10,14 +10,14 @@
 (defn list-objects-paged
   "Returns all results in a lazy seq taking into account the pagination."
   [cred options]
-  (let [resp (s3/list-objects cred options)
-        page-data (:object-summaries resp)]
-    (if (:truncated? resp)
-      (lazy-cat page-data
+  (let [{:keys [object-summaries truncated? next-marker] :as resp}
+        (s3/list-objects cred options)]
+    (if truncated?
+      (lazy-cat object-summaries
                 (list-objects-paged cred
                                     (assoc options
-                                           :marker (:next-marker resp))))
-      page-data)))
+                                           :marker next-marker)))
+      object-summaries)))
 
 
 ;; Helper functions for the pre-processing step
