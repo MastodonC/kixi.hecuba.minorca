@@ -4,9 +4,10 @@
             [clojure.edn             :as edn]
             [clojure.java.io         :as io]
             [clojure.tools.logging   :as log]
+            [amazonica.aws.s3        :as s3]
             [kixi.hecuba.api-helpers :as api]
-            [clojure.set             :as set]
-            [amazonica.aws.s3        :as s3]))
+            [kixi.hecuba.process-helpers :as pro]
+            [clojure.tools.cli :refer [parse-opts]]))
 
 
 ;; Get all information from the configuration file
@@ -31,39 +32,12 @@
   Ordered by last modification date."
   []
   (log/info "Looking for the files in s3 bucket...")
-  (try (let [s3-objects (:object-summaries (s3/list-objects cred bucket))]
-         (->> (sort-by :last-modified
-                       s3-objects)
-              (map :key)))
+  (try (let [s3-objects
+             (pro/list-objects-paged cred {:bucket-name bucket})]
+         (map :key s3-objects))
        (catch Throwable t
          (println "Got exception: " (.getMessage t))
          (throw t))))
-
-
-;; Helper functions for the pre-processing step
-(defn file->seq-of-maps
-  "Read a csv and output a seq of maps containing the file data."
-  [input-file]
-  (let [data-seq (with-open [in-file (io/reader input-file)]
-                   (vec (csv/read-csv in-file)))]
-    (map #(zipmap (mapv keyword (first data-seq)) %)
-         (rest data-seq))))
-
-(defn select-identifiers
-  "Take a seq of maps and return a set of values 
-  for the key passed in."
-  [input-data key-to-select]
-  (set (map key-to-select input-data)))
-
-(defn look-up
-  "Get two sets of ids and return the ids that
-  are in the first set and aren't in the second set."
-  [houses-ids ids-mapping]
-  (set/difference houses-ids ids-mapping))
-
-(defn write-to-file [mapping-file data]
-  (with-open [out-file (io/writer mapping-file)]
-    (csv/write-csv out-file data)))
 
 
 ;; Frist step: check if there are new houses to be created
@@ -71,13 +45,14 @@
   "Check if houses are new. If so then create new instances
   in hecuba and add them to the mapping file."
   [input-data mapping-file project_id base-url username password]
-  (let [houses-ids (select-identifiers input-data :house_id)
+  (log/info "Running the pre-processing step...")
+  (let [houses-ids (pro/select-identifiers input-data :house_id)
         mapping-content (with-open [in-file (io/reader mapping-file)]
                           (vec (csv/read-csv in-file)))
         mapping-data (map #(zipmap (mapv keyword (first mapping-content)) %)
                           (rest mapping-content))
-        map-houses-ids (select-identifiers mapping-data :house_id)
-        new-houses (look-up houses-ids map-houses-ids)]
+        map-houses-ids (pro/select-identifiers mapping-data :house_id)
+        new-houses (pro/look-up houses-ids map-houses-ids)]
     (if (empty? new-houses) ;; No new house
       (println "NO new house")
       ;; Create new houses + write mapping csv
@@ -90,7 +65,7 @@
             new-houses)
            (concat mapping-content)
            vec
-           (write-to-file mapping-file)))))
+           (pro/write-to-file mapping-file)))))
 
 (comment (pre-processing "resources/measurements-elec.csv"
                          "resources/mapping.csv"
@@ -99,57 +74,26 @@
                          "me@user.com" "p4ssw0rd"))
 
 
-;; Helper functions for the processing step
-(defn format-mapping-data
-  [mapping-data]
-  (->> (map (fn [m] {(:house_id m)
-                     {:entity_id (:entity_id m)
-                      :device_id (:device_id m)}})
-            mapping-data)
-       (reduce merge)))
-
-(defn format-input-data
-  [input-data]
-  (->> input-data
-       (map #(select-keys % [:house_id :device_timestamp
-                             :energy :temperature]))
-       (group-by :house_id)))
-
-(defn merge-data-ids
-  "Use the two functions above to associate the measurements
-  with the entity_id and device_id."
-  [data-input data-map]
-  (->> (map (fn [[k v]] {{:entity_id (:entity_id (get data-map k))
-                          :device_id (:device_id (get data-map k))} 
-                         (mapv (fn [m]
-                                 (select-keys m [:device_timestamp
-                                                 :energy :temperature]))
-                               v)})
-            data-input)
-       (reduce merge)))
-
-(defn prepare-measurements-for-upload
-  "Using the mapping file to add the measurements to the
-  right embed properties."
-  [input-data mapping-file]
-  (let [formatted-input (format-input-data input-data)
-        mapping-data (file->seq-of-maps mapping-file)
-        mapping-ids (format-mapping-data mapping-data)]
-    (merge-data-ids formatted-input mapping-ids)))
-
-
 ;; Second step: processing and uploading the data
 (defn upload-measurement-data
   "Use the previous function to pre-format the data
   before using helper functions to format more and
   send the POST request."
   [input-data mapping-file base-url username password]
-  (->> (prepare-measurements-for-upload
+  (log/info "Running the processing+upload step...")
+  (->> (pro/prepare-measurements-for-upload
         input-data mapping-file)
        (map (fn [[map-ids vec-measure]]
               (api/decide-upload (:entity_id map-ids) (:device_id map-ids)
                                  vec-measure
                                  base-url username password)))))
+
+;; Deal with command-line options
+(def cli-options
+  [["-i" "--project-id ID" "Project_id for a getembed project"]
+   ["-u" "--embed-url URL" "Url for endpoint for getembed"]
+   ["-n" "--username USERNAME" "Username associated with a getembed account"]
+   ["-p" "--password PASSWORD" "Password associated with a getembed account"]])
 
 
 
@@ -158,27 +102,33 @@
 ;; Step 1: pre-process the data (+ update houses mapping file)
 ;; Step 2: process + upload the data
 ;; Note: create a file to store the data files processed
-(defn main
-  "To do all the things."
-  [project_id base-url username password]
-  (let [{:keys [mapping-file processed-file]} config-info
-        s3-files (take 2 (list-files-in-bucket))]
+(defn -main
+  "Perform data processing and upload.
+  Update the mapping and files list CSVs."
+  [& args]
+  (let [{:keys [project-id embed-url username password] :as opts}
+        (:options (parse-opts args cli-options))
+        {:keys [mapping-file processed-file]} config-info
+        s3-files (take 3 (list-files-in-bucket))]
     (map (fn [f]
+           (log/info "> FILE " f)
            (let [file-info (s3/get-object cred bucket f)
                  input-data (with-open [r (->> (s3/get-object cred bucket f)
                                                :object-content
                                                io/reader)]
-                              (file->seq-of-maps r))
+                              (pro/file->seq-of-maps r))
                  processed-content (with-open [in-file (io/reader processed-file)]
                                      (vec (csv/read-csv in-file)))
                  data-to-save (conj (vec processed-content)
                                     [(:key file-info) (:object-metadata file-info)
                                      (:bucket-name file-info) (:object-content file-info)])]
-             (write-to-file processed-file data-to-save)
+             (println ">> Pre-processing... " f)
+             (pro/write-to-file processed-file data-to-save)
              (pre-processing input-data
-                             mapping-file project_id
-                             base-url username password)
+                             mapping-file project-id
+                             embed-url username password)
+             (println ">> Processing... " f)
              (upload-measurement-data input-data mapping-file
-                                      base-url username password)))
+                                      embed-url username password)))
          s3-files)))
 
