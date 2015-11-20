@@ -15,7 +15,7 @@
     (if (:truncated? resp)
       (lazy-cat page-data
                 (list-objects-paged cred
-                                    (assoc resp
+                                    (assoc options
                                            :marker (:next-marker resp))))
       page-data)))
 
