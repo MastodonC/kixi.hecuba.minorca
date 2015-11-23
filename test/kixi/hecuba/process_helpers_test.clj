@@ -37,6 +37,13 @@
           {:house_id "003", :device_timestamp "1436911200", :energy "1283"}]})
 
 ;; Tests:
+(deftest file->seq-of-maps-test
+  (testing "Output a seq of maps with keyword keys"
+    (is (= '({:column1 "data", :column2 "data2", :column3 "data3"} {:column1 "more data", :column2 " more data2", :column3 " more data3"})
+           (file->seq-of-maps "resources/test_file.csv")))
+    (is (= '({:column_one "data", :column_two "data2", :column_three "data3"} {:column_one "more data", :column_two " more data2", :column_three " more data3"})
+           (file->seq-of-maps "resources/test_file2.csv")))))
+
 (deftest select-identifiers-test
   (testing "Output is as expected"
     (is (= #{"002" "003" "001"}

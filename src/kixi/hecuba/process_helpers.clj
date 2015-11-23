@@ -21,12 +21,22 @@
 
 
 ;; Helper functions for the pre-processing step
+(defn format-key
+  "Handle keys that countain a space"
+  [key]
+  ((comp 
+    keyword
+    clojure.string/lower-case
+    #(clojure.string/replace % #" " "_"))
+   key))
+
 (defn file->seq-of-maps
   "Read a csv and output a seq of maps containing the file data."
   [input-file] 
   (let [data-seq (with-open [in-file (io/reader input-file)]
                    (vec (csv/read-csv in-file)))]
-    (map #(zipmap (mapv keyword (first data-seq)) %)
+    (map #(zipmap (mapv format-key                          
+                        (first data-seq)) %)
          (rest data-seq))))
 
 (defn select-identifiers

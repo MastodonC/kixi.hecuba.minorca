@@ -12,6 +12,7 @@
   "Use property info (project_id and property_code)
   to create a new property and return its entity_id"
   [property-info base-url username password]
+  (log/info "create-new-property")
   (let [post-url (format "%sentities/" base-url)
         json-payload (json/write-str property-info)]
     (-> (try (client/post post-url
@@ -39,6 +40,7 @@
   "Use device info (name, entity_id, unit, period and type)
   to create a new device and return its device_id"
   [entity-id device-info base-url username password]
+  (log/info "create-new-device")
   (let [post-url (format "%sentities/%s/devices/" base-url entity-id)
         json-payload (format-device-info device-info)]
     (-> (try (client/post post-url
@@ -72,6 +74,7 @@
   "Create a new property + a new device. Return the entity_id
   and device_id in a vector."
   [property-info device_name base-url username password]
+  (log/info "create-new-entities")
   (let [entity_id (create-new-property property-info base-url username password)
         device_id (create-new-device entity_id {:readings readings
                                                 :description device_name
