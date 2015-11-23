@@ -80,6 +80,7 @@
   "Using the mapping file to add the measurements to the
   right embed properties."
   [input-data mapping-file]
+  (log/info "prepare-measurements-for-upload")
   (let [formatted-input (format-input-data input-data)
         mapping-data (file->seq-of-maps mapping-file)
         mapping-ids (format-mapping-data mapping-data)]
