@@ -5,6 +5,8 @@
             [clojure.java.io         :as io]
             [clojure.tools.logging   :as log]
             [amazonica.aws.s3        :as s3]
+            [clj-time.core           :as t]
+            [clj-time.format         :as f]
             [kixi.hecuba.api-helpers :as api]
             [kixi.hecuba.process-helpers :as pro]
             [clojure.tools.cli :refer [parse-opts]]))
@@ -31,7 +33,7 @@
   "List the files contained in the s3 bucket.
   Ordered by last modification date."
   []
-  (log/info "Looking for the files in s3 bucket...")
+  (println "Looking for the files in s3 bucket...")
   (try (let [s3-objects
              (pro/list-objects-paged cred {:bucket-name bucket})]
          (map :key s3-objects))
@@ -54,12 +56,13 @@
         map-houses-ids (pro/select-identifiers mapping-data :house_id)
         new-houses (pro/look-up houses-ids map-houses-ids)]
     (if (empty? new-houses) ;; No new house
-      (println "NO new house")
+      (log/info "NO new house")
       ;; Create new houses + write mapping csv
       (->> (pmap
             (fn [house] (vec (cons house
                                    (api/create-new-entities
-                                    {:project_id project_id :property_code house}
+                                    {:project_id project_id
+                                     :property_code (str "House " house)}
                                     (str "Device " house)
                                     base-url username password))))
             new-houses)
@@ -81,12 +84,12 @@
   send the POST request."
   [input-data mapping-file base-url username password]
   (log/info "Running the processing+upload step...")
-  (->> (pro/prepare-measurements-for-upload
-        input-data mapping-file)
-       (map (fn [[map-ids vec-measure]]
-              (api/decide-upload (:entity_id map-ids) (:device_id map-ids)
-                                 vec-measure
-                                 base-url username password)))))
+  (let [prepared (pro/prepare-measurements-for-upload
+                  input-data mapping-file)]
+    (doseq [[map-ids vec-measure] prepared]
+      (api/decide-upload (:entity_id map-ids) (:device_id map-ids)
+                         vec-measure
+                         base-url username password) prepared)))
 
 ;; Deal with command-line options
 (def cli-options
@@ -95,7 +98,8 @@
    ["-n" "--username USERNAME" "Username associated with a getembed account"]
    ["-p" "--password PASSWORD" "Password associated with a getembed account"]])
 
-
+;; Datetime formatter
+(def fmt (f/formatters :date-hour-minute-second))
 
 ;; Bring all the steps together:
 ;; Step 0: get the data from the S3 bucket
@@ -109,26 +113,32 @@
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
         {:keys [mapping-file processed-file]} config-info
-        s3-files (take 3 (list-files-in-bucket))]
-    (map (fn [f]
-           (log/info "> FILE " f)
-           (let [file-info (s3/get-object cred bucket f)
-                 input-data (with-open [r (->> (s3/get-object cred bucket f)
-                                               :object-content
-                                               io/reader)]
-                              (pro/file->seq-of-maps r))
-                 processed-content (with-open [in-file (io/reader processed-file)]
-                                     (vec (csv/read-csv in-file)))
-                 data-to-save (conj (vec processed-content)
-                                    [(:key file-info) (:object-metadata file-info)
-                                     (:bucket-name file-info) (:object-content file-info)])]
-             (println ">> Pre-processing... " f)
-             (pro/write-to-file processed-file data-to-save)
-             (pre-processing input-data
-                             mapping-file project-id
-                             embed-url username password)
-             (println ">> Processing... " f)
-             (upload-measurement-data input-data mapping-file
-                                      embed-url username password)))
-         s3-files)))
+        s3-files (list-files-in-bucket)]
+    (log/info "S3 files:" s3-files)
+    (doseq [f s3-files]
+      (println "> FILE " f)
+      (let [file-info (s3/get-object cred bucket f)
+            input-data (with-open [r (->> (s3/get-object cred bucket f)
+                                          :object-content
+                                          io/reader)]
+                         (pro/file->seq-of-maps r))
+            processed-content (with-open [in-file (io/reader processed-file)]
+                                (vec (csv/read-csv in-file)))
+            data-to-save (conj (vec processed-content)
+                               [(f/unparse fmt (t/now)) (:key file-info) (:bucket-name file-info)
+                                (:object-metadata file-info) (:object-content file-info)])]
+        (println ">> Pre-processing... " f)
+        (pro/write-to-file processed-file data-to-save)
+        (pre-processing input-data
+                        mapping-file project-id
+                        embed-url username password)
+        (println ">> Processing... " f)
+        (upload-measurement-data input-data mapping-file
+                                 embed-url username password)))))
+
+(comment
+  (-main "-ixxx-xxx-xxx"
+         "-uhttps://www.api-url/v1/"
+         "-nme@user.com"
+         "-pp4ssw0rd"))
 
