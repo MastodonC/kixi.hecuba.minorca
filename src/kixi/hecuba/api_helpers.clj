@@ -113,6 +113,7 @@
 (defn upload-measurements
   "Uploaded the measurements formatted to json format."
   [entity-id device-id base-url username password measurements]
+  (log/info "upload-measurements")
   (let [post-url (format "%sentities/%s/devices/%s/measurements/"
                          base-url entity-id device-id)]
     (try (client/post post-url
@@ -132,6 +133,7 @@
 (defn decide-upload
   "Handle correctly depending on the type of the input data."
   [entity-id device-id measurements base-url username password]
+  (log/info "decide-upload")
   (let [upload-fn (partial upload-measurements
                            entity-id device-id
                            base-url username password)]
