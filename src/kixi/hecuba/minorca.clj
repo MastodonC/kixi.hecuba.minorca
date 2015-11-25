@@ -7,6 +7,7 @@
             [amazonica.aws.s3        :as s3]
             [clj-time.core           :as t]
             [clj-time.format         :as f]
+            [clojure.set             :as set]
             [kixi.hecuba.api-helpers :as api]
             [kixi.hecuba.process-helpers :as pro]
             [clojure.tools.cli :refer [parse-opts]]))
@@ -25,14 +26,10 @@
 
 
 ;; Get all the files in the S3 bucket
-(def bucket (-> config-info :s3 :bucket))
-
-(def cred (-> config-info :s3 :cred))
-
 (defn list-files-in-bucket
   "List the files contained in the s3 bucket.
   Ordered by last modification date."
-  []
+  [cred bucket]
   (println "Looking for the files in s3 bucket...")
   (try (let [s3-objects
              (pro/list-objects-paged cred {:bucket-name bucket})]
@@ -54,7 +51,7 @@
         mapping-data (map #(zipmap (mapv keyword (first mapping-content)) %)
                           (rest mapping-content))
         map-houses-ids (pro/select-identifiers mapping-data :house_id)
-        new-houses (pro/look-up houses-ids map-houses-ids)]
+        new-houses (set/difference houses-ids map-houses-ids)]
     (if (empty? new-houses) ;; No new house
       (log/info "NO new house")
       ;; Create new houses + write mapping csv
@@ -112,29 +109,35 @@
   [& args]
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
-        {:keys [mapping-file processed-file]} config-info
-        s3-files (list-files-in-bucket)]
-    (log/info "S3 files:" s3-files)
-    (doseq [f s3-files]
-      (println "> FILE " f)
-      (let [file-info (s3/get-object cred bucket f)
-            input-data (with-open [r (->> (s3/get-object cred bucket f)
-                                          :object-content
-                                          io/reader)]
-                         (pro/file->seq-of-maps r))
-            processed-content (with-open [in-file (io/reader processed-file)]
-                                (vec (csv/read-csv in-file)))
-            data-to-save (conj (vec processed-content)
-                               [(f/unparse fmt (t/now)) (:key file-info) (:bucket-name file-info)
-                                (:object-metadata file-info) (:object-content file-info)])]
-        (println ">> Pre-processing... " f)
-        (pro/write-to-file processed-file data-to-save)
-        (pre-processing input-data
-                        mapping-file project-id
-                        embed-url username password)
-        (println ">> Processing... " f)
-        (upload-measurement-data input-data mapping-file
-                                 embed-url username password)))))
+        {:keys [s3 mapping-file processed-file]} config-info
+        {:keys [cred bucket]} s3
+        processed-files (map :file_name (pro/file->seq-of-maps processed-file))
+        s3-files (list-files-in-bucket cred bucket)
+        files-to-process (set/difference (set s3-files) (set processed-files))]
+    (log/info "New S3 files:" files-to-process)
+    (if (> (count files-to-process) 0)
+      (doseq [f files-to-process]
+        (println "> FILE " f)
+        (let [{:keys [key bucket-name object-metadata object-content]}
+              (s3/get-object cred bucket f)
+              input-data (with-open [r (->> (s3/get-object cred bucket f)
+                                            :object-content
+                                            io/reader)]
+                           (pro/file->seq-of-maps r))
+              processed-content (with-open [in-file (io/reader processed-file)]
+                                  (vec (csv/read-csv in-file)))
+              data-to-save (conj (vec processed-content)
+                                 [(f/unparse fmt (t/now)) key bucket-name
+                                  object-metadata object-content])]
+          (println ">> Pre-processing... " f)
+          (pro/write-to-file processed-file data-to-save)
+          (pre-processing input-data
+                          mapping-file project-id
+                          embed-url username password)
+          (println ">> Processing... " f)
+          (upload-measurement-data input-data mapping-file
+                                   embed-url username password)))
+      (println "No new files on S3"))))
 
 (comment
   (-main "-ixxx-xxx-xxx"
