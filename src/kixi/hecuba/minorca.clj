@@ -7,6 +7,7 @@
             [amazonica.aws.s3        :as s3]
             [clj-time.core           :as t]
             [clj-time.format         :as f]
+            [clojure.set             :as set]
             [kixi.hecuba.api-helpers :as api]
             [kixi.hecuba.process-helpers :as pro]
             [clojure.tools.cli :refer [parse-opts]]))
@@ -50,7 +51,7 @@
         mapping-data (map #(zipmap (mapv keyword (first mapping-content)) %)
                           (rest mapping-content))
         map-houses-ids (pro/select-identifiers mapping-data :house_id)
-        new-houses (pro/look-up houses-ids map-houses-ids)]
+        new-houses (set/difference houses-ids map-houses-ids)]
     (if (empty? new-houses) ;; No new house
       (log/info "NO new house")
       ;; Create new houses + write mapping csv
@@ -108,16 +109,16 @@
   [& args]
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
-        {:keys [[bucket cred] mapping-file processed-file]} config-info
+        {:keys [s3 mapping-file processed-file]} config-info
         processed-files (map :file_name (pro/file->seq-of-maps processed-file))
-        s3-files (list-files-in-bucket cred bucket)
-        files-to-process (into '() (pro/look-up (set s3-files) (set processed-files)))]
+        s3-files (list-files-in-bucket (:cred s3) (:bucket s3))
+        files-to-process (set/difference (set s3-files) (set processed-files))]
     (log/info "New S3 files:" files-to-process)
     (if (> (count files-to-process) 0)
       (doseq [f files-to-process]
         (println "> FILE " f)
-        (let [file-info (s3/get-object cred bucket f)
-              input-data (with-open [r (->> (s3/get-object cred bucket f)
+        (let [file-info (s3/get-object (:cred s3) (:bucket s3) f)
+              input-data (with-open [r (->> (s3/get-object (:cred s3) (:bucket s3) f)
                                             :object-content
                                             io/reader)]
                            (pro/file->seq-of-maps r))

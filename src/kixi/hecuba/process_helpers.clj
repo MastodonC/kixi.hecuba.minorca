@@ -45,12 +45,6 @@
   [input-data key-to-select]
   (set (map key-to-select input-data)))
 
-(defn look-up
-  "Get two sets of ids and return the ids that
-  are in the first set and aren't in the second set."
-  [houses-ids ids-mapping]
-  (set/difference houses-ids ids-mapping))
-
 (defn write-to-file [output-file data]
   (log/info "Writing file" output-file)
   (with-open [out-file (io/writer output-file)]

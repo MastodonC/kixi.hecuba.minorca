@@ -49,13 +49,6 @@
     (is (= #{"002" "003" "001"}
            (select-identifiers input-data :house_id)))))
 
-(deftest look-up-test
-  (testing "Output is as expected"
-    (is (= #{} (look-up #{"002" "003" "001"}
-                        #{"002" "003" "001"})))
-    (is (= #{"004"} (look-up #{"002" "003" "001" "004"}
-                             #{"002" "003" "001"})))))
-
 (deftest format-mapping-data-test
   (testing "Output is as expected"
     (is (= {"001" {:entity_id "aaa-aaa-aaa", :device_id "bbb-bbb-bbb"}
