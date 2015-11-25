@@ -110,15 +110,16 @@
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
         {:keys [s3 mapping-file processed-file]} config-info
+        {:keys [cred bucket]} s3
         processed-files (map :file_name (pro/file->seq-of-maps processed-file))
-        s3-files (list-files-in-bucket (:cred s3) (:bucket s3))
+        s3-files (list-files-in-bucket cred bucket)
         files-to-process (set/difference (set s3-files) (set processed-files))]
     (log/info "New S3 files:" files-to-process)
     (if (> (count files-to-process) 0)
       (doseq [f files-to-process]
         (println "> FILE " f)
-        (let [file-info (s3/get-object (:cred s3) (:bucket s3) f)
-              input-data (with-open [r (->> (s3/get-object (:cred s3) (:bucket s3) f)
+        (let [file-info (s3/get-object cred bucket f)
+              input-data (with-open [r (->> (s3/get-object cred bucket f)
                                             :object-content
                                             io/reader)]
                            (pro/file->seq-of-maps r))
