@@ -25,14 +25,10 @@
 
 
 ;; Get all the files in the S3 bucket
-(def bucket (-> config-info :s3 :bucket))
-
-(def cred (-> config-info :s3 :cred))
-
 (defn list-files-in-bucket
   "List the files contained in the s3 bucket.
   Ordered by last modification date."
-  []
+  [cred bucket]
   (println "Looking for the files in s3 bucket...")
   (try (let [s3-objects
              (pro/list-objects-paged cred {:bucket-name bucket})]
@@ -112,9 +108,9 @@
   [& args]
   (let [{:keys [project-id embed-url username password] :as opts}
         (:options (parse-opts args cli-options))
-        {:keys [mapping-file processed-file]} config-info
+        {:keys [[bucket cred] mapping-file processed-file]} config-info
         processed-files (map :file_name (pro/file->seq-of-maps processed-file))
-        s3-files (list-files-in-bucket)
+        s3-files (list-files-in-bucket cred bucket)
         files-to-process (into '() (pro/look-up (set s3-files) (set processed-files)))]
     (log/info "New S3 files:" files-to-process)
     (if (> (count files-to-process) 0)
