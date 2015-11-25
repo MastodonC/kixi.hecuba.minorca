@@ -118,17 +118,17 @@
     (if (> (count files-to-process) 0)
       (doseq [f files-to-process]
         (println "> FILE " f)
-        (let [file-info (s3/get-object cred bucket f)
+        (let [{:keys [key bucket-name object-metadata object-content]}
+              (s3/get-object cred bucket f)
               input-data (with-open [r (->> (s3/get-object cred bucket f)
                                             :object-content
                                             io/reader)]
                            (pro/file->seq-of-maps r))
-                                               
               processed-content (with-open [in-file (io/reader processed-file)]
                                   (vec (csv/read-csv in-file)))
               data-to-save (conj (vec processed-content)
-                                 [(f/unparse fmt (t/now)) (:key file-info) (:bucket-name file-info)
-                                  (:object-metadata file-info) (:object-content file-info)])]
+                                 [(f/unparse fmt (t/now)) key bucket-name
+                                  object-metadata object-content])]
           (println ">> Pre-processing... " f)
           (pro/write-to-file processed-file data-to-save)
           (pre-processing input-data
