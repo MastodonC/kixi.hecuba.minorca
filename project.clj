@@ -22,4 +22,12 @@
             [lein-kibit      "0.1.2"]]
   :main kixi.hecuba.minorca
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}})
+  :profiles {:uberjar {:aot :all}}
+  :repositories [["releases" {:url "s3p://mc-maven-repo/releases"
+                              :username :env/mc_aws_username
+                              :passphrase :env/mc_aws_passphrase
+                              :sign-releases false}]
+                 ["snapshots" {:url "s3p://mc-maven-repo/snapshots"
+                               :username :env/mc_aws_username
+                               :passphrase :env/mc_aws_passphrase
+                               :sign-releases false}]])
