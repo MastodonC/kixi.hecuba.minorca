@@ -1,5 +1,5 @@
 (def slf4j-version "1.7.12")
-(defproject kixi.hecuba.minorca "0.1.0-SNAPSHOT"
+(defproject kixi.hecuba.minorca "0.1.0"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
