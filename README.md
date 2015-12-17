@@ -21,6 +21,23 @@ It needs:
 * a file to store which input files have been processed (see an example [here](https://github.com/MastodonC/kixi.hecuba.minorca/blob/master/resources/default-files-processed.csv)).
 
 
+####Important note:
+
+As it is the programme is expecting to have a "mapping-file" and a "processed-file".
+
+The first time the programme is run those CSV files will be empty but for the column headers.
+
+__The headers expected are as follow:__
+
+* for the "mapping-file":
+
+`Timestamp,File name,S3 bucket,Metadata,File content`
+
+* for the "processed-file":
+
+`house_id,entity_id,device_id`
+
+
 ## Usage
 Create a jar:
 

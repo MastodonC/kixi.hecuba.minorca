@@ -43,7 +43,7 @@
   "Take a seq of maps and return a set of values 
   for the key passed in."
   [input-data key-to-select]
-  (set (map key-to-select input-data)))
+  (set (keep key-to-select input-data)))
 
 (defn write-to-file [output-file data]
   (log/info "Writing file" output-file)

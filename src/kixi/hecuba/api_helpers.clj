@@ -75,6 +75,7 @@
   and device_id in a vector."
   [property-info device_name base-url username password]
   (log/info "create-new-entities")
+  (log/info (format ">> Creating %s + %s" (:property_code property-info) device_name))
   (let [entity_id (create-new-property property-info base-url username password)
         device_id (create-new-device entity_id {:readings readings
                                                 :description device_name

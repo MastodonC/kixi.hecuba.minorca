@@ -52,20 +52,20 @@
                           (rest mapping-content))
         map-houses-ids (pro/select-identifiers mapping-data :house_id)
         new-houses (set/difference houses-ids map-houses-ids)]
-    (if (empty? new-houses) ;; No new house
-      (log/info "NO new house")
-      ;; Create new houses + write mapping csv
-      (->> (pmap
-            (fn [house] (vec (cons house
-                                   (api/create-new-entities
-                                    {:project_id project_id
-                                     :property_code (str "House " house)}
-                                    (str "Device " house)
-                                    base-url username password))))
-            new-houses)
-           (concat mapping-content)
-           vec
-           (pro/write-to-file mapping-file)))))
+    (log/debug ">> map-houses-ids + new-houses: " map-houses-ids new-houses)
+    (if (empty? new-houses) (log/info "NO new house")
+        ;; Create new houses + write mapping csv
+        (->> (pmap
+              (fn [house] (vec (cons house
+                                     (api/create-new-entities
+                                      {:project_id project_id
+                                       :property_code (str "House " house)}
+                                      (str "Device " house)
+                                      base-url username password))))
+              new-houses)
+             (concat mapping-content)
+             vec
+             (pro/write-to-file mapping-file)))))
 
 (comment (pre-processing "resources/measurements-elec.csv"
                          "resources/mapping.csv"
@@ -111,33 +111,32 @@
         (:options (parse-opts args cli-options))
         {:keys [s3 mapping-file processed-file]} config-info
         {:keys [cred bucket]} s3
-        processed-files (map :file_name (pro/file->seq-of-maps processed-file))
+        processed-files (keep :file_name (pro/file->seq-of-maps processed-file)) 
         s3-files (list-files-in-bucket cred bucket)
         files-to-process (set/difference (set s3-files) (set processed-files))]
     (log/info "New S3 files:" files-to-process)
-    (if (> (count files-to-process) 0)
-      (doseq [f files-to-process]
-        (println "> FILE " f)
-        (let [{:keys [key bucket-name object-metadata object-content]}
-              (s3/get-object cred bucket f)
-              input-data (with-open [r (->> (s3/get-object cred bucket f)
-                                            :object-content
-                                            io/reader)]
-                           (pro/file->seq-of-maps r))
-              processed-content (with-open [in-file (io/reader processed-file)]
-                                  (vec (csv/read-csv in-file)))
-              data-to-save (conj (vec processed-content)
-                                 [(f/unparse fmt (t/now)) key bucket-name
-                                  object-metadata object-content])]
-          (println ">> Pre-processing... " f)
-          (pro/write-to-file processed-file data-to-save)
-          (pre-processing input-data
-                          mapping-file project-id
-                          embed-url username password)
-          (println ">> Processing... " f)
-          (upload-measurement-data input-data mapping-file
-                                   embed-url username password)))
-      (println "No new files on S3"))))
+    (if (empty? files-to-process) (log/info "No new files on S3")
+        (doseq [f files-to-process]
+          (println "> FILE " f)
+          (let [{:keys [key bucket-name object-metadata object-content]}
+                (s3/get-object cred bucket f)
+                input-data (with-open [r (->> (s3/get-object cred bucket f)
+                                              :object-content
+                                              io/reader)]
+                             (pro/file->seq-of-maps r))
+                processed-content (with-open [in-file (io/reader processed-file)]
+                                    (vec (csv/read-csv in-file)))
+                data-to-save (conj (vec processed-content)
+                                   [(f/unparse fmt (t/now)) key bucket-name
+                                    object-metadata object-content])]
+            (println ">> Pre-processing... " f)
+            (pro/write-to-file processed-file data-to-save)
+            (pre-processing input-data
+                            mapping-file project-id
+                            embed-url username password)
+            (println ">> Processing... " f)
+            (upload-measurement-data input-data mapping-file
+                                     embed-url username password))))))
 
 (comment
   (-main "-ixxx-xxx-xxx"
