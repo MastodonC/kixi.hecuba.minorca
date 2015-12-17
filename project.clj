@@ -22,5 +22,4 @@
             [lein-kibit      "0.1.2"]]
   :main kixi.hecuba.minorca
   :target-path "target/%s"
-  :profiles {:uberjar {:aot :all}}
-  :lein-release {:deploy-via :lein-install})
+  :profiles {:uberjar {:aot :all}})
